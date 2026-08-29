@@ -53,18 +53,18 @@ export async function POST(request: NextRequest) {
     console.error(`Failed to persist optimizer_sessions row: ${insertError.message}`);
   }
 
-  const calendlyUrl = process.env.NEXT_PUBLIC_CALENDLY_URL || "[CALENDLY_URL]";
-  try {
-    await sendReportEmail({ to: body.email, result, calendlyUrl });
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
-  }
-
   // Feeds the private thd-consulting-platform's marketing/lead-capture
   // service (Phase 8) -- same shared Supabase project, a separate table
-  // (consulting_lead_captures) this repo writes into but doesn't own or read
-  // back from. Best-effort, same reasoning as the optimizer_sessions
-  // insert above: never block the report email that already sent.
+  // (consulting_lead_captures) this repo writes into but doesn't own or
+  // read back from. Deliberately BEFORE the email send below, not
+  // after: sendReportEmail can throw and return early (e.g. Resend's
+  // sender domain isn't verified yet -- a real, currently-active
+  // condition, not hypothetical), and a visitor who submitted a real
+  // email address is still a real lead even when the email itself
+  // fails to send. Placing this after the email send meant an email
+  // outage silently dropped every lead on top of the already-known
+  // email failure -- caught by driving the real deployed API and
+  // finding zero rows landed, not by reading the code.
   const { error: leadError } = await supabase.from("consulting_lead_captures").insert({
     source: "optimizer",
     email: body.email,
@@ -73,6 +73,13 @@ export async function POST(request: NextRequest) {
   });
   if (leadError) {
     console.error(`Failed to record consulting_lead_captures row: ${leadError.message}`);
+  }
+
+  const calendlyUrl = process.env.NEXT_PUBLIC_CALENDLY_URL || "[CALENDLY_URL]";
+  try {
+    await sendReportEmail({ to: body.email, result, calendlyUrl });
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
   }
 
   return NextResponse.json({ status: "sent" });
