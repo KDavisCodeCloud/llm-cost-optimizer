@@ -15,7 +15,7 @@ export async function sendReportEmail({
   if (!apiKey) {
     throw new Error("RESEND_API_KEY is not configured");
   }
-  const fromAddress = process.env.RESEND_FROM_ADDRESS || "optimizer@thdstack.com";
+  const fromAddress = process.env.RESEND_FROM_ADDRESS || "optimizer@thdagentic.com";
   const resend = new Resend(apiKey);
 
   const { error } = await resend.emails.send({
