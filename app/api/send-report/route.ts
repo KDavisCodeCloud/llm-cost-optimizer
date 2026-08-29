@@ -60,5 +60,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });
   }
 
+  // Feeds the private thd-consulting-platform's marketing/lead-capture
+  // service (Phase 8) -- same shared Supabase project, a separate table
+  // (consulting_lead_captures) this repo writes into but doesn't own or read
+  // back from. Best-effort, same reasoning as the optimizer_sessions
+  // insert above: never block the report email that already sent.
+  const { error: leadError } = await supabase.from("consulting_lead_captures").insert({
+    source: "optimizer",
+    email: body.email,
+    context: { monthly_savings: result.monthlySavings, annual_savings: result.annualSavings, savings_pct: result.savingsPct },
+    utm_source: body.utmSource ?? null,
+  });
+  if (leadError) {
+    console.error(`Failed to record consulting_lead_captures row: ${leadError.message}`);
+  }
+
   return NextResponse.json({ status: "sent" });
 }
